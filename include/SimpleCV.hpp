@@ -22,6 +22,14 @@ namespace SimpleCV
         BGRA       // 4 channel
     };
 
+    enum class BorderType
+    {
+        CONSTANT,   // 常量填充
+        REPLICATE,  // 边缘复制 (aaaa|abcd|dddd)
+        REFLECT,    // 镜像 (dcba|abcd|dcba)
+        REFLECT_101 // 镜像101 (cbab|abcd|cbab) 也叫 reflect without repeating edge
+    };
+
     class Mat
     {
     public:
@@ -158,6 +166,14 @@ namespace SimpleCV
 
     // 任意互转：RGB/BGR/RGBA/BGRA/GRAY
     Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
+
+    // value: 支持 1/3/4 通道值；会按 dst.channels 适配
+    void copyMakeBorder(
+        const Mat &src,
+        Mat &dst,
+        int top, int bottom, int left, int right,
+        BorderType borderType = BorderType::CONSTANT,
+        const std::vector<unsigned char> &value = std::vector<unsigned char>{0, 0, 0, 255});
 }
 
 #endif // SIMPLECV_HPP

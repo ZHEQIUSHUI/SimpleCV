@@ -411,3 +411,149 @@ namespace SimpleCV
         return dst;
     }
 }
+
+namespace SimpleCV
+{
+    static inline unsigned char border_pick_value(
+        const std::vector<unsigned char> &v, int k)
+    {
+        if (v.empty())
+            return 0;
+        if (v.size() == 1)
+            return v[0];
+        if (v.size() == 3)
+            return (k < 3) ? v[k] : 255;
+        if (k < (int)v.size())
+            return v[k];
+        return v.back();
+    }
+
+    static inline int border_map_coord(int p, int len, BorderType bt)
+    {
+        // 把越界坐标 p 映射到 [0, len-1]
+        // len 必须 > 0
+        if (len == 1)
+            return 0;
+
+        if (bt == BorderType::REPLICATE)
+        {
+            if (p < 0)
+                return 0;
+            if (p >= len)
+                return len - 1;
+            return p;
+        }
+
+        if (bt == BorderType::REFLECT || bt == BorderType::REFLECT_101)
+        {
+            // OpenCV 语义：
+            // REFLECT:      fedcba|abcdefgh|hgfedcb
+            // REFLECT_101:   gfedcb|abcdefgh|gfedcba  （边界像素不重复）
+            const int delta = (bt == BorderType::REFLECT_101) ? 1 : 0;
+
+            while (p < 0 || p >= len)
+            {
+                if (p < 0)
+                    p = -p - 1 + delta;
+                else
+                    p = (2 * len - 1) - p - delta;
+            }
+            // 保险
+            if (p < 0)
+                p = 0;
+            if (p >= len)
+                p = len - 1;
+            return p;
+        }
+
+        // CONSTANT 不需要映射（调用方会走填充分支）
+        // 为了安全：夹紧
+        if (p < 0)
+            return 0;
+        if (p >= len)
+            return len - 1;
+        return p;
+    }
+
+    void copyMakeBorder(
+        const Mat &src,
+        Mat &dst,
+        int top, int bottom, int left, int right,
+        BorderType borderType,
+        const std::vector<unsigned char> &value)
+    {
+        if (src.empty())
+        {
+            dst.release();
+            return;
+        }
+        if (top < 0)
+            top = 0;
+        if (bottom < 0)
+            bottom = 0;
+        if (left < 0)
+            left = 0;
+        if (right < 0)
+            right = 0;
+
+        const int c = src.channels;
+        const int out_h = src.height + top + bottom;
+        const int out_w = src.width + left + right;
+
+        if (out_h <= 0 || out_w <= 0 || c <= 0)
+        {
+            dst.release();
+            return;
+        }
+
+        Mat out(out_h, out_w, c); // step = out_w*c (紧密)
+
+        // ===== 1) CONSTANT：先整张填充，再把 src 贴进去（最快）=====
+        if (borderType == BorderType::CONSTANT)
+        {
+            // fill
+            for (int y = 0; y < out.height; ++y)
+            {
+                unsigned char *row = out.data + y * out.step;
+                for (int x = 0; x < out.width; ++x)
+                {
+                    unsigned char *p = row + x * c;
+                    for (int k = 0; k < c; ++k)
+                        p[k] = border_pick_value(value, k);
+                }
+            }
+
+            // paste center
+            for (int y = 0; y < src.height; ++y)
+            {
+                unsigned char *drow = out.data + (y + top) * out.step + left * c;
+                const unsigned char *srow = src.data + y * src.step;
+                std::memcpy(drow, srow, (size_t)src.width * (size_t)c);
+            }
+
+            dst = std::move(out);
+            return;
+        }
+
+        // ===== 2) 非 CONSTANT：逐像素用映射规则取 src 对应像素（简单通用）=====
+        for (int y = 0; y < out.height; ++y)
+        {
+            const int sy = border_map_coord(y - top, src.height, borderType);
+            const unsigned char *srow = src.data + sy * src.step;
+            unsigned char *drow = out.data + y * out.step;
+
+            for (int x = 0; x < out.width; ++x)
+            {
+                const int sx = border_map_coord(x - left, src.width, borderType);
+                const unsigned char *sp = srow + sx * c;
+                unsigned char *dp = drow + x * c;
+
+                // copy pixel
+                for (int k = 0; k < c; ++k)
+                    dp[k] = sp[k];
+            }
+        }
+
+        dst = std::move(out);
+    }
+}
