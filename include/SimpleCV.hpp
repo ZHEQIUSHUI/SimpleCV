@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
+#include <cstddef>
+#include <limits>
 
 namespace SimpleCV
 {
@@ -39,12 +41,29 @@ namespace SimpleCV
         unsigned char *data = nullptr;
         int step = 0; // stride in bytes
 
+        // ===== 构造：外部数据（指定 step/stride）=====
         Mat(int h, int w, int c, unsigned char *d, int s, bool is_own_data = false)
         {
             reset(h, w, c, d, s, is_own_data);
         }
 
-        Mat(int h, int w, int c, unsigned char *d, bool is_own_data = false)
+        // 允许 size_t stride，避免外部 stride 类型不是 int 时落到 bool 重载
+        Mat(int h, int w, int c, unsigned char *d, std::size_t s, bool is_own_data = false)
+        {
+            int si = (s > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+                         ? std::numeric_limits<int>::max()
+                         : static_cast<int>(s);
+            reset(h, w, c, d, si, is_own_data);
+        }
+
+        // ===== 构造：外部数据（紧密存储，step = w*c）=====
+        Mat(int h, int w, int c, unsigned char *d)
+        {
+            reset(h, w, c, d, w * c, false);
+        }
+
+        // 显式 ownership（不提供默认值，避免误把 stride 当 bool）
+        Mat(int h, int w, int c, unsigned char *d, bool is_own_data)
         {
             reset(h, w, c, d, w * c, is_own_data);
         }
@@ -170,6 +189,7 @@ namespace SimpleCV
     void resize(const Mat &src, Mat &dst, int dst_width, int dst_height);
 
     // 任意互转：RGB/BGR/RGBA/BGRA/GRAY
+    void cvtColor(const Mat &src, Mat &dst, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
     Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
 
     // value: 支持 1/3/4 通道值；会按 dst.channels 适配

@@ -239,17 +239,61 @@ namespace SimpleCV
 {
     void resize(const Mat &src, Mat &dst, int dst_width, int dst_height)
     {
-        if (src.empty() || dst_height <= 0 || dst_width <= 0)
+        if (src.empty() || dst_width <= 0 || dst_height <= 0)
         {
             dst.release();
             return;
         }
-        if (dst.width != dst_width || dst.height != dst_height || dst.channels != src.channels)
+        if (src.step < src.width * src.channels)
+        { // 防御：src stride 必须够
+            dst.release();
+            return;
+        }
+
+        // 处理 in-place / 共享内存（最简单：指针相等就当冲突）
+        if (dst.data == src.data)
+        {
+            Mat tmp(dst_height, dst_width, src.channels);
+            resize(src, tmp, dst_width, dst_height);
+            dst = tmp; // 或 swap
+            return;
+        }
+
+        bool can_reuse =
+            dst.data &&
+            dst.width == dst_width &&
+            dst.height == dst_height &&
+            dst.channels == src.channels &&
+            dst.step >= dst_width * dst.channels;
+
+        if (!can_reuse)
             dst.create(dst_height, dst_width, src.channels);
 
-        // stbir_pixel_layout：这里用 "channels" 的数值直接 cast（1..4）
-        // 1->STBIR_1CHANNEL, 2->STBIR_2CHANNEL, 3->STBIR_RGB, 4->STBIR_RGBA
-        auto layout = (stbir_pixel_layout)src.channels;
+        if (dst.step < dst.width * dst.channels)
+        { // 防御：dst stride 必须够
+            dst.release();
+            return;
+        }
+
+        stbir_pixel_layout layout;
+        switch (src.channels)
+        {
+        case 1:
+            layout = STBIR_1CHANNEL;
+            break;
+        case 2:
+            layout = STBIR_2CHANNEL;
+            break;
+        case 3:
+            layout = STBIR_RGB;
+            break;
+        case 4:
+            layout = STBIR_RGBA;
+            break;
+        default:
+            dst.release();
+            return;
+        }
 
         unsigned char *out = stbir_resize_uint8_linear(
             src.data, src.width, src.height, src.step,
@@ -257,8 +301,9 @@ namespace SimpleCV
             layout);
 
         if (!out)
-            dst.release(); // 失败返回 NULL（并不会写 dst）
+            dst.release();
     }
+
 }
 
 namespace SimpleCV
@@ -275,10 +320,23 @@ namespace SimpleCV
         return clamp_u8(y);
     }
 
-    Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space)
+    static inline bool dst_buffer_compatible(const Mat &dst, int h, int w, int c)
+    {
+        if (dst.empty())
+            return false;
+        if (dst.height != h || dst.width != w || dst.channels != c)
+            return false;
+        const int min_step = w * c;
+        return dst.step >= min_step && dst.data != nullptr;
+    }
+
+    void cvtColor(const Mat &src, Mat &dst, ColorSpace dst_space, ColorSpace src_space)
     {
         if (src.empty())
-            return Mat();
+        {
+            dst.release();
+            return;
+        }
 
         if (src_space == ColorSpace::AUTO)
             src_space = infer_space_from_channels(src);
@@ -290,15 +348,23 @@ namespace SimpleCV
         // dst_space 也不允许 UNCHANGED/AUTO（你也可以允许 AUTO=按 src 直接返回 clone）
         if (dst_space == ColorSpace::AUTO || dst_space == ColorSpace::UNCHANGED)
         {
-            // 这里选择：AUTO/UNCHANGED -> 返回浅拷贝（或 clone，看你习惯）
-            return src; // 浅拷贝，共享内存
+            // AUTO/UNCHANGED：保持源格式，做浅拷贝（共享底层 buffer）
+            dst = src;
+            return;
         }
 
         auto dst_ch = desired_channels(dst_space);
         if (dst_ch == 0)
-            return Mat();
+        {
+            dst.release();
+            return;
+        }
 
-        Mat dst(src.height, src.width, dst_ch);
+        // 如果用户提供的 dst 尺寸/通道/stride 满足需求，则直接复用；否则重新分配
+        if (!dst_buffer_compatible(dst, src.height, src.width, dst_ch))
+        {
+            dst.create(src.height, src.width, dst_ch);
+        }
 
         // 一些快速路径
         if (src_space == dst_space)
@@ -307,7 +373,7 @@ namespace SimpleCV
             if (src.channels == dst.channels && src.step == dst.step)
             {
                 std::memcpy(dst.data, src.data, (size_t)src.height * (size_t)src.step);
-                return dst;
+                return;
             }
         }
 
@@ -363,7 +429,8 @@ namespace SimpleCV
                 else
                 {
                     // 不支持的 src_space
-                    return Mat();
+                    dst.release();
+                    return;
                 }
 
                 // 写入 dst
@@ -403,12 +470,18 @@ namespace SimpleCV
                 }
                 else
                 {
-                    return Mat();
+                    dst.release();
+                    return;
                 }
             }
         }
+    }
 
-        return dst;
+    Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space)
+    {
+        Mat out;
+        cvtColor(src, out, dst_space, src_space);
+        return out;
     }
 }
 
