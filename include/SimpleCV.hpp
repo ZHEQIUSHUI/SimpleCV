@@ -39,12 +39,12 @@ namespace SimpleCV
         unsigned char *data = nullptr;
         int step = 0; // stride in bytes
 
-        Mat(int h, int w, int c, unsigned char *d, int s, bool is_own_data)
+        Mat(int h, int w, int c, unsigned char *d, int s, bool is_own_data = false)
         {
             reset(h, w, c, d, s, is_own_data);
         }
 
-        Mat(int h, int w, int c, unsigned char *d, bool is_own_data)
+        Mat(int h, int w, int c, unsigned char *d, bool is_own_data = false)
         {
             reset(h, w, c, d, w * c, is_own_data);
         }
