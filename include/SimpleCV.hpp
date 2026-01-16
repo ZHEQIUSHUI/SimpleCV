@@ -199,6 +199,14 @@ namespace SimpleCV
         int top, int bottom, int left, int right,
         BorderType borderType = BorderType::CONSTANT,
         const std::vector<unsigned char> &value = std::vector<unsigned char>{0, 0, 0, 255});
+
+    // 返回匹配到的路径（默认按字典序排序）
+    // pattern 示例：
+    //   "images/*.png"
+    //   "data/??.jpg"
+    //   "assets/**/icon-*.png"   (支持 ** 递归)
+    //   "C:\\temp\\*.txt"        (Windows)
+    std::vector<std::string> glob(const std::string &pattern, bool recursive_double_star = true);
 }
 
 #endif // SIMPLECV_HPP
