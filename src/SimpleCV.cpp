@@ -237,15 +237,15 @@ namespace SimpleCV
 
 namespace SimpleCV
 {
-    void resize(const Mat &src, Mat &dst, int dst_height, int dst_width)
+    void resize(const Mat &src, Mat &dst, int dst_width, int dst_height)
     {
         if (src.empty() || dst_height <= 0 || dst_width <= 0)
         {
             dst.release();
             return;
         }
-
-        dst.create(dst_height, dst_width, src.channels, dst_width * src.channels);
+        if (dst.width != dst_width || dst.height != dst_height || dst.channels != src.channels)
+            dst.create(dst_height, dst_width, src.channels);
 
         // stbir_pixel_layout：这里用 "channels" 的数值直接 cast（1..4）
         // 1->STBIR_1CHANNEL, 2->STBIR_2CHANNEL, 3->STBIR_RGB, 4->STBIR_RGBA

@@ -110,6 +110,11 @@ namespace SimpleCV
             data = owner_.get();
         }
 
+        void create(int h, int w, int c)
+        {
+            create(h, w, c, w * c);
+        }
+
         void release()
         {
             owner_.reset();
@@ -162,7 +167,7 @@ namespace SimpleCV
     bool imencode(const Mat &mat, std::vector<unsigned char> &buf);
 
     // imgproc
-    void resize(const Mat &src, Mat &dst, int dst_height, int dst_width);
+    void resize(const Mat &src, Mat &dst, int dst_width, int dst_height);
 
     // 任意互转：RGB/BGR/RGBA/BGRA/GRAY
     Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
