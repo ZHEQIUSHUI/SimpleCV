@@ -1,6 +1,31 @@
 #ifndef SIMPLECV_HPP
 #define SIMPLECV_HPP
 
+// ==========================================================
+// 跨平台：Windows/Linux 导出宏 + 常见宏污染处理
+// ==========================================================
+#if defined(_WIN32) || defined(_WIN64)
+#ifndef NOMINMAX
+// 防止 Windows 头文件把 std::min/std::max 变成宏
+#define NOMINMAX
+#endif
+
+#if defined(SIMPLECV_BUILD_DLL)
+#define SIMPLECV_API __declspec(dllexport)
+#elif defined(SIMPLECV_USE_DLL)
+#define SIMPLECV_API __declspec(dllimport)
+#else
+#define SIMPLECV_API
+#endif
+#else
+// GCC/Clang: 可见性控制（不强制，留空也可以）
+#if defined(__GNUC__) && __GNUC__ >= 4
+#define SIMPLECV_API __attribute__((visibility("default")))
+#else
+#define SIMPLECV_API
+#endif
+#endif
+
 #include <string>
 #include <vector>
 #include <memory>
@@ -9,6 +34,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <utility> // std::move
 
 namespace SimpleCV
 {
@@ -32,7 +58,7 @@ namespace SimpleCV
         REFLECT_101 // 镜像101 (cbab|abcd|cbab) 也叫 reflect without repeating edge
     };
 
-    class Mat
+    class SIMPLECV_API Mat
     {
     public:
         int height = 0;
@@ -179,21 +205,21 @@ namespace SimpleCV
     };
 
     // imgcodec
-    Mat imread(const std::string &filename, ColorSpace flag = ColorSpace::UNCHANGED);
-    Mat imdecode(const std::vector<unsigned char> &buf, ColorSpace flag = ColorSpace::UNCHANGED);
+    SIMPLECV_API Mat imread(const std::string &filename, ColorSpace flag = ColorSpace::UNCHANGED);
+    SIMPLECV_API Mat imdecode(const std::vector<unsigned char> &buf, ColorSpace flag = ColorSpace::UNCHANGED);
 
-    bool imwrite(const std::string &filename, const Mat &mat);
-    bool imencode(const Mat &mat, std::vector<unsigned char> &buf);
+    SIMPLECV_API bool imwrite(const std::string &filename, const Mat &mat);
+    SIMPLECV_API bool imencode(const Mat &mat, std::vector<unsigned char> &buf);
 
     // imgproc
-    void resize(const Mat &src, Mat &dst, int dst_width, int dst_height);
+    SIMPLECV_API void resize(const Mat &src, Mat &dst, int dst_width, int dst_height);
 
     // 任意互转：RGB/BGR/RGBA/BGRA/GRAY
-    void cvtColor(const Mat &src, Mat &dst, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
-    Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
+    SIMPLECV_API void cvtColor(const Mat &src, Mat &dst, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
+    SIMPLECV_API Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
 
     // value: 支持 1/3/4 通道值；会按 dst.channels 适配
-    void copyMakeBorder(
+    SIMPLECV_API void copyMakeBorder(
         const Mat &src,
         Mat &dst,
         int top, int bottom, int left, int right,
@@ -206,7 +232,7 @@ namespace SimpleCV
     //   "data/??.jpg"
     //   "assets/**/icon-*.png"   (支持 ** 递归)
     //   "C:\\temp\\*.txt"        (Windows)
-    std::vector<std::string> glob(const std::string &pattern, bool recursive_double_star = true);
+    SIMPLECV_API std::vector<std::string> glob(const std::string &pattern, bool recursive_double_star = true);
 }
 
 #endif // SIMPLECV_HPP
