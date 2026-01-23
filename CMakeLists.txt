@@ -11,6 +11,7 @@ add_library(simplecv STATIC
   src/SimpleCV_Codec.cpp
   src/SimpleCV_Proc.cpp
   src/SimpleCV_Draw.cpp
+  src/SimpleCV_Text.cpp
   src/SimpleCV_Utils.cpp
 )
 

@@ -178,12 +178,42 @@ static void test_circle_border_and_fill() {
     save_image(img, "out_circle_filled.png");
 }
 
+static void test_text() {
+    Mat img; img.create(120, 400, 3);
+    // 清黑
+    for (int y=0;y<img.height;++y) memset(img.data + (size_t)y*img.step, 0, img.step);
+
+    Scalar white(255,255,255,0);
+    int base = 0;
+    Size sz = getTextSize("Hello 123", 2.0, 2, &base);
+
+    // 画一个基线标记
+    line(img, Point(10, 100), Point(390, 100), Scalar(0,255,0,0), 1);
+
+    putText(img, "Hello 123", Point(10, 100), 2.0, white, 2);
+
+    // 简单断言：文本区域应该至少有一些非零像素
+    int nonzero = 0;
+    for (int y=0;y<img.height;++y){
+        unsigned char* row = img.data + (size_t)y*img.step;
+        for (int x=0;x<img.width*img.channels;++x) nonzero += (row[x] != 0);
+    }
+    CHECK(nonzero > 100, "putText should draw some pixels");
+
+    CHECK(sz.width > 0 && sz.height > 0, "getTextSize positive");
+    CHECK(base >= 0, "baseline non-negative");
+
+    CHECK(imwrite("out_text.png", img), "imwrite out_text.png");
+}
+
+
 int main() {
     test_line_basic();
     test_line_thick();
     test_rectangle_border_and_fill();
     test_rectangle_rect_overload_and_clip();
     test_circle_border_and_fill();
+    test_text();
 
     if (g_fail == 0) {
         std::cout << "[OK] all tests passed\n";

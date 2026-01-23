@@ -400,6 +400,14 @@ namespace SimpleCV
     SIMPLECV_API void cvtColor(const Mat &src, Mat &dst, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
     SIMPLECV_API Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
 
+    // value: 支持 1/3/4 通道值；会按 dst.channels 适配
+    SIMPLECV_API void copyMakeBorder(
+        const Mat &src,
+        Mat &dst,
+        int top, int bottom, int left, int right,
+        BorderType borderType = BorderType::CONSTANT,
+        const std::vector<unsigned char> &value = std::vector<unsigned char>{0, 0, 0, 255});
+
     SIMPLECV_API void rectangle(Mat &img, Point pt1, Point pt2, const Scalar &color,
                                 int thickness = 1, int lineType = 8, int shift = 0);
     SIMPLECV_API void rectangle(Mat &img, Rect rec, const Scalar &color,
@@ -411,13 +419,19 @@ namespace SimpleCV
     SIMPLECV_API void line(Mat &img, Point p0, Point p1, const Scalar &color,
                            int thickness = 1);
 
-    // value: 支持 1/3/4 通道值；会按 dst.channels 适配
-    SIMPLECV_API void copyMakeBorder(
-        const Mat &src,
-        Mat &dst,
-        int top, int bottom, int left, int right,
-        BorderType borderType = BorderType::CONSTANT,
-        const std::vector<unsigned char> &value = std::vector<unsigned char>{0, 0, 0, 255});
+    SIMPLECV_API void putText(Mat &img,
+                              const std::string &text,
+                              Point org,
+                              double fontScale,
+                              const Scalar &color,
+                              int thickness = 1,
+                              int lineType = 8,
+                              bool bottomLeftOrigin = false);
+
+    SIMPLECV_API Size getTextSize(const std::string &text,
+                                  double fontScale,
+                                  int thickness,
+                                  int *baseLine);
 
     // 返回匹配到的路径（默认按字典序排序）
     // pattern 示例：
