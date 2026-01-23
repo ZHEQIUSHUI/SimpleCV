@@ -35,6 +35,7 @@
 #include <cstddef>
 #include <limits>
 #include <utility> // std::move
+#include <climits>
 
 namespace SimpleCV
 {
@@ -57,6 +58,187 @@ namespace SimpleCV
         REFLECT,    // 镜像 (dcba|abcd|dcba)
         REFLECT_101 // 镜像101 (cbab|abcd|cbab) 也叫 reflect without repeating edge
     };
+
+    template <typename _Tp>
+    static inline _Tp saturate_cast(int v)
+    {
+        return _Tp(v);
+    }
+    template <>
+    inline unsigned char saturate_cast<unsigned char>(int v)
+    {
+        return (unsigned char)((unsigned)v <= UCHAR_MAX ? v : v > 0 ? UCHAR_MAX
+                                                                    : 0);
+    }
+
+    template <typename _Tp>
+    struct Scalar_
+    {
+        Scalar_()
+        {
+            v[0] = 0;
+            v[1] = 0;
+            v[2] = 0;
+            v[3] = 0;
+        }
+        Scalar_(_Tp _v0)
+        {
+            v[0] = _v0;
+            v[1] = 0;
+            v[2] = 0;
+            v[3] = 0;
+        }
+        Scalar_(_Tp _v0, _Tp _v1)
+        {
+            v[0] = _v0;
+            v[1] = _v1;
+            v[2] = 0;
+            v[3] = 0;
+            width = v[0];
+            height = v[1];
+        }
+        Scalar_(_Tp _v0, _Tp _v1, _Tp _v2)
+        {
+            v[0] = _v0;
+            v[1] = _v1;
+            v[2] = _v2;
+            v[3] = 0;
+            width = v[0];
+            height = v[1];
+        }
+        Scalar_(_Tp _v0, _Tp _v1, _Tp _v2, _Tp _v3)
+        {
+            v[0] = _v0;
+            v[1] = _v1;
+            v[2] = _v2;
+            v[3] = _v3;
+            width = v[0];
+            height = v[1];
+        }
+
+        const _Tp operator[](const int i) const { return v[i]; }
+        // void operator[](const int i) {}
+        _Tp &operator[](const int i) { return v[i]; }
+
+        _Tp v[4];
+
+        int width = v[0];
+        int height = v[1];
+    };
+
+    typedef Scalar_<unsigned char> Scalar;
+
+    template <typename _Tp>
+    struct Point_
+    {
+        Point_() : x(0), y(0) {}
+        Point_(_Tp _x, _Tp _y) : x(_x), y(_y) {}
+
+        template <typename _Tp2>
+        operator Point_<_Tp2>() const
+        {
+            return Point_<_Tp2>(saturate_cast<_Tp2>(x), saturate_cast<_Tp2>(y));
+        }
+
+        bool operator==(const Point_ &b) { return x == b.x && y == b.y; }
+        bool operator!=(const Point_ &b) { return x != b.x || y != b.y; }
+        Point_<_Tp> operator-(const Point_<_Tp> &b)
+        {
+            return Point_<_Tp>(x - b.x, y - b.y);
+        }
+
+        _Tp x;
+        _Tp y;
+    };
+
+    typedef Point_<int> Point;
+    typedef Point_<float> Point2f;
+
+    template <typename _Tp>
+    struct Size_
+    {
+        Size_() : width(0), height(0) {}
+        Size_(_Tp _w, _Tp _h) : width(_w), height(_h) {}
+        Size_(_Tp _w, _Tp _h, _Tp _c) : width(_w), height(_h), channel(_c) {}
+
+        template <typename _Tp2>
+        operator Size_<_Tp2>() const
+        {
+            return Size_<_Tp2>(saturate_cast<_Tp2>(width), saturate_cast<_Tp2>(height));
+        }
+
+        _Tp width;
+        _Tp height;
+        _Tp channel;
+    };
+
+    typedef Size_<int> Size;
+    typedef Size_<float> Size2f;
+
+    template <typename _Tp>
+    struct Rect_
+    {
+        Rect_() : x(0), y(0), width(0), height(0) {}
+        Rect_(_Tp _x, _Tp _y, _Tp _w, _Tp _h) : x(_x), y(_y), width(_w), height(_h) {}
+        Rect_(Point_<_Tp> _p, Size_<_Tp> _size)
+            : x(_p.x), y(_p.y), width(_size.width), height(_size.height) {}
+
+        template <typename _Tp2>
+        operator Rect_<_Tp2>() const
+        {
+            return Rect_<_Tp2>(saturate_cast<_Tp2>(x), saturate_cast<_Tp2>(y),
+                               saturate_cast<_Tp2>(width), saturate_cast<_Tp2>(height));
+        }
+
+        _Tp x;
+        _Tp y;
+        _Tp width;
+        _Tp height;
+
+        // area
+        _Tp area() const { return width * height; }
+    };
+
+    template <typename _Tp>
+    static inline Rect_<_Tp> &operator&=(Rect_<_Tp> &a, const Rect_<_Tp> &b)
+    {
+        _Tp x1 = std::max(a.x, b.x), y1 = std::max(a.y, b.y);
+        a.width = std::min(a.x + a.width, b.x + b.width) - x1;
+        a.height = std::min(a.y + a.height, b.y + b.height) - y1;
+        a.x = x1;
+        a.y = y1;
+        if (a.width <= 0 || a.height <= 0)
+            a = Rect_<_Tp>();
+        return a;
+    }
+
+    template <typename _Tp>
+    static inline Rect_<_Tp> &operator|=(Rect_<_Tp> &a, const Rect_<_Tp> &b)
+    {
+        _Tp x1 = std::min(a.x, b.x), y1 = std::min(a.y, b.y);
+        a.width = std::max(a.x + a.width, b.x + b.width) - x1;
+        a.height = std::max(a.y + a.height, b.y + b.height) - y1;
+        a.x = x1;
+        a.y = y1;
+        return a;
+    }
+
+    template <typename _Tp>
+    static inline Rect_<_Tp> operator&(const Rect_<_Tp> &a, const Rect_<_Tp> &b)
+    {
+        Rect_<_Tp> c = a;
+        return c &= b;
+    }
+
+    template <typename _Tp>
+    static inline Rect_<_Tp> operator|(const Rect_<_Tp> &a, const Rect_<_Tp> &b)
+    {
+        Rect_<_Tp> c = a;
+        return c |= b;
+    }
+
+    typedef Rect_<int> Rect;
+    typedef Rect_<float> Rect2f;
 
     class SIMPLECV_API Mat
     {
@@ -217,6 +399,17 @@ namespace SimpleCV
     // 任意互转：RGB/BGR/RGBA/BGRA/GRAY
     SIMPLECV_API void cvtColor(const Mat &src, Mat &dst, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
     SIMPLECV_API Mat cvtColor(const Mat &src, ColorSpace dst_space, ColorSpace src_space = ColorSpace::AUTO);
+
+    SIMPLECV_API void rectangle(Mat &img, Point pt1, Point pt2, const Scalar &color,
+                                int thickness = 1, int lineType = 8, int shift = 0);
+    SIMPLECV_API void rectangle(Mat &img, Rect rec, const Scalar &color,
+                                int thickness = 1);
+
+    SIMPLECV_API void circle(Mat &img, Point center, int radius, const Scalar &color,
+                             int thickness = 1);
+
+    SIMPLECV_API void line(Mat &img, Point p0, Point p1, const Scalar &color,
+                           int thickness = 1);
 
     // value: 支持 1/3/4 通道值；会按 dst.channels 适配
     SIMPLECV_API void copyMakeBorder(

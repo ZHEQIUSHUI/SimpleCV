@@ -8,7 +8,10 @@ project(SimpleCV
 option(SIMPLECV_BUILD_TESTS "Build SimpleCV tests" ON)
 
 add_library(simplecv STATIC
-  src/SimpleCV.cpp
+  src/SimpleCV_Codec.cpp
+  src/SimpleCV_Proc.cpp
+  src/SimpleCV_Draw.cpp
+  src/SimpleCV_Utils.cpp
 )
 
 add_library(SimpleCV::simplecv ALIAS simplecv)

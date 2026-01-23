@@ -13,3 +13,11 @@ add_executable(test_imread_imwrite
 
 target_link_libraries(test_imread_imwrite PRIVATE SimpleCV::simplecv)
 target_compile_features(test_imread_imwrite PRIVATE cxx_std_17)
+
+add_executable(test_draw
+  test_draw.cpp
+)
+
+target_link_libraries(test_draw PRIVATE SimpleCV::simplecv)
+target_compile_features(test_draw PRIVATE cxx_std_17)
+add_test(NAME test_draw COMMAND test_draw)
