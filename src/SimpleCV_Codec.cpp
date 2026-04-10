@@ -112,6 +112,8 @@ namespace SimpleCV
         buf.clear();
         if (mat.empty())
             return false;
+        if (mat.depth != Depth::U8 || mat.elem_size != 1)
+            return false;
 
         // 默认用 PNG（无损、通用）
         // stride 是每行字节数
@@ -129,6 +131,8 @@ namespace SimpleCV
     bool imwrite(const std::string &filename, const Mat &mat)
     {
         if (mat.empty())
+            return false;
+        if (mat.depth != Depth::U8 || mat.elem_size != 1)
             return false;
 
         const std::string ext = file_ext_lower(filename);

@@ -13,6 +13,7 @@ add_library(simplecv STATIC
   src/SimpleCV_Draw.cpp
   src/SimpleCV_Text.cpp
   src/SimpleCV_Utils.cpp
+  src/SimpleCV_Kalman.cpp
 )
 
 add_library(SimpleCV::simplecv ALIAS simplecv)

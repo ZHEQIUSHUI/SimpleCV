@@ -160,17 +160,156 @@ static bool test_imwrite_imread_flags()
   return true;
 }
 
+static bool test_mat_meta_and_typed_access()
+{
+  SimpleCV::Mat m(2, 3, 3);
+  SC_ASSERT(m.rows() == 2 && m.cols() == 3);
+  SC_ASSERT(m.elemSize1() == 1);
+  SC_ASSERT(m.elemSize() == 3);
+  SC_ASSERT(m.type() == SimpleCV::make_type(SimpleCV::Depth::U8, 3));
+  SC_ASSERT(SimpleCV::type_depth(m.type()) == SimpleCV::Depth::U8);
+  SC_ASSERT(SimpleCV::type_channels(m.type()) == 3);
+
+  SC_ASSERT(m.total() == 6);
+  SC_ASSERT(m.totalBytes() == static_cast<size_t>(m.height) * static_cast<size_t>(m.step));
+  SC_ASSERT(m.isContinuous());
+
+  SC_ASSERT(m.isType<unsigned char>());
+  SC_ASSERT(!m.isType<float>());
+
+  unsigned char *row0 = m.ptr(0);
+  SC_ASSERT(row0 == m.data);
+  unsigned char *row0_u8 = m.ptr<unsigned char>(0);
+  SC_ASSERT(row0_u8 == m.data);
+  float *row0_f = m.ptr<float>(0);
+  SC_ASSERT(row0_f == nullptr);
+
+  unsigned char *p = m.at_ptr<unsigned char>(1, 2, 1);
+  SC_ASSERT(p != nullptr);
+  *p = 77;
+  unsigned char *row1 = m.ptr(1);
+  SC_ASSERT(row1[2 * 3 + 1] == 77);
+
+  SC_ASSERT(m.at_ptr<float>(0, 0) == nullptr);
+  return true;
+}
+
+static bool test_clone_continuous_from_padded_step()
+{
+  SimpleCV::Mat m;
+  // padded step (bytes) > width*channels
+  m.create(3, 4, 1, SimpleCV::Depth::U8, 16);
+  SC_ASSERT(!m.empty());
+  SC_ASSERT(!m.isContinuous());
+
+  for (int y = 0; y < m.height; ++y)
+  {
+    unsigned char *row = m.ptr(y);
+    for (int x = 0; x < m.width; ++x)
+      row[x] = static_cast<unsigned char>(y * 10 + x);
+  }
+
+  SimpleCV::Mat c = m.clone();
+  SC_ASSERT(!c.empty());
+  SC_ASSERT(c.depth == m.depth && c.elem_size == m.elem_size && c.channels == m.channels);
+  SC_ASSERT(c.isContinuous());
+  SC_ASSERT(c.step == c.width * c.channels * c.elem_size);
+
+  for (int y = 0; y < m.height; ++y)
+  {
+    const unsigned char *sr = m.ptr(y);
+    const unsigned char *cr = c.ptr(y);
+    SC_ASSERT(std::memcmp(sr, cr, static_cast<size_t>(m.width)) == 0);
+  }
+  return true;
+}
+
+static bool test_matf_identity_helpers()
+{
+  SimpleCV::Matf I = SimpleCV::Matf::eye(4);
+  SC_ASSERT(!I.empty());
+  SC_ASSERT(I.depth == SimpleCV::Depth::F32);
+  SC_ASSERT(I.elemSize1() == 4);
+  SC_ASSERT(I.channels == 1);
+  SC_ASSERT(I.rows() == 4 && I.cols() == 4);
+  SC_ASSERT(I.isContinuous());
+
+  for (int r = 0; r < I.rows(); ++r)
+    for (int c = 0; c < I.cols(); ++c)
+      SC_ASSERT(I.at(r, c) == (r == c ? 1.0f : 0.0f));
+
+  I.setIdentity(2.0f);
+  for (int r = 0; r < I.rows(); ++r)
+    for (int c = 0; c < I.cols(); ++c)
+      SC_ASSERT(I.at(r, c) == (r == c ? 2.0f : 0.0f));
+
+  return true;
+}
+
+static bool test_kalman_2d_constant_velocity()
+{
+  // state: [x, y, vx, vy]^T, measurement: [x, y]^T
+  SimpleCV::KalmanFilter kf(4, 2);
+
+  kf.transitionMatrix.setZero();
+  // A
+  kf.transitionMatrix.at(0, 0) = 1.0f; kf.transitionMatrix.at(0, 2) = 1.0f;
+  kf.transitionMatrix.at(1, 1) = 1.0f; kf.transitionMatrix.at(1, 3) = 1.0f;
+  kf.transitionMatrix.at(2, 2) = 1.0f;
+  kf.transitionMatrix.at(3, 3) = 1.0f;
+
+  kf.measurementMatrix.setZero();
+  // H
+  kf.measurementMatrix.at(0, 0) = 1.0f;
+  kf.measurementMatrix.at(1, 1) = 1.0f;
+
+  kf.processNoiseCov.setIdentity(1e-4f);
+  kf.measurementNoiseCov.setIdentity(0.1f);
+  kf.errorCovPost.setIdentity(1.0f);
+  kf.statePost.setZero();
+
+  float tx = 0.0f, ty = 0.0f;
+  const float vx = 1.0f, vy = 2.0f;
+
+  for (int i = 0; i < 40; ++i)
+  {
+    tx += vx;
+    ty += vy;
+
+    // deterministic pseudo-noise in [-0.25, 0.20]
+    float nx = (float)(((i * 17) % 10) - 5) * 0.05f;
+    float ny = (float)(((i * 23) % 10) - 5) * 0.05f;
+
+    SimpleCV::Matf z(2, 1);
+    z.at(0, 0) = tx + nx;
+    z.at(1, 0) = ty + ny;
+
+    kf.predict();
+    kf.correct(z);
+  }
+
+  SC_ASSERT(std::fabs(kf.statePost.at(2, 0) - vx) < 0.2f);
+  SC_ASSERT(std::fabs(kf.statePost.at(3, 0) - vy) < 0.2f);
+  SC_ASSERT(std::fabs(kf.statePost.at(0, 0) - tx) < 1.0f);
+  SC_ASSERT(std::fabs(kf.statePost.at(1, 0) - ty) < 1.0f);
+  return true;
+}
+
 int main()
 {
   struct Case { const char* name; bool (*fn)(); };
   Case cases[] = {
     {"mat_copy_and_clone", test_mat_copy_and_clone},
+    {"mat_meta_and_typed_access", test_mat_meta_and_typed_access},
+    {"clone_continuous_from_padded_step", test_clone_continuous_from_padded_step},
+    {"matf_identity_helpers", test_matf_identity_helpers},
     {"cvt_rgb_bgr", test_cvt_rgb_bgr},
     {"cvt_rgb_gray", test_cvt_rgb_gray},
     {"cvt_rgba_bgra_and_back", test_cvt_rgba_bgra_and_back},
     {"cvt_gray_to_rgba", test_cvt_gray_to_rgba},
     {"imencode_imdecode_png_roundtrip", test_imencode_imdecode_png_roundtrip},
     {"imwrite_imread_flags", test_imwrite_imread_flags},
+    {"kalman_2d_constant_velocity", test_kalman_2d_constant_velocity},
   };
 
   int passed = 0;

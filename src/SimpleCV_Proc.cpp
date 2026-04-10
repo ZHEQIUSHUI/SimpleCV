@@ -16,7 +16,12 @@ namespace SimpleCV
             dst.release();
             return;
         }
-        if (src.step < src.width * src.channels)
+        if (src.depth != Depth::U8 || src.elem_size != 1)
+        {
+            dst.release();
+            return;
+        }
+        if (src.step < src.width * src.channels * src.elem_size)
         { // 防御：src stride 必须够
             dst.release();
             return;
@@ -36,12 +41,14 @@ namespace SimpleCV
             dst.width == dst_width &&
             dst.height == dst_height &&
             dst.channels == src.channels &&
-            dst.step >= dst_width * dst.channels;
+            dst.depth == src.depth &&
+            dst.elem_size == src.elem_size &&
+            dst.step >= dst_width * dst.channels * dst.elem_size;
 
         if (!can_reuse)
-            dst.create(dst_height, dst_width, src.channels);
+            dst.create(dst_height, dst_width, src.channels, src.depth, 0);
 
-        if (dst.step < dst.width * dst.channels)
+        if (dst.step < dst.width * dst.channels * dst.elem_size)
         { // 防御：dst stride 必须够
             dst.release();
             return;
@@ -96,15 +103,22 @@ namespace SimpleCV
     {
         if (dst.empty())
             return false;
+        if (dst.depth != Depth::U8 || dst.elem_size != 1)
+            return false;
         if (dst.height != h || dst.width != w || dst.channels != c)
             return false;
-        const int min_step = w * c;
+        const int min_step = w * c * dst.elem_size;
         return dst.step >= min_step && dst.data != nullptr;
     }
 
     void cvtColor(const Mat &src, Mat &dst, ColorSpace dst_space, ColorSpace src_space)
     {
         if (src.empty())
+        {
+            dst.release();
+            return;
+        }
+        if (src.depth != Depth::U8 || src.elem_size != 1)
         {
             dst.release();
             return;
@@ -135,7 +149,7 @@ namespace SimpleCV
         // 如果用户提供的 dst 尺寸/通道/stride 满足需求，则直接复用；否则重新分配
         if (!dst_buffer_compatible(dst, src.height, src.width, dst_ch))
         {
-            dst.create(src.height, src.width, dst_ch);
+            dst.create(src.height, src.width, dst_ch, src.depth, 0);
         }
 
         // 一些快速路径
@@ -332,6 +346,11 @@ namespace SimpleCV
             dst.release();
             return;
         }
+        if (src.depth != Depth::U8 || src.elem_size != 1)
+        {
+            dst.release();
+            return;
+        }
         if (top < 0)
             top = 0;
         if (bottom < 0)
@@ -373,7 +392,7 @@ namespace SimpleCV
             {
                 unsigned char *drow = out.data + (y + top) * out.step + left * c;
                 const unsigned char *srow = src.data + y * src.step;
-                std::memcpy(drow, srow, (size_t)src.width * (size_t)c);
+                std::memcpy(drow, srow, (size_t)src.width * (size_t)c * (size_t)src.elem_size);
             }
 
             dst = std::move(out);

@@ -97,6 +97,8 @@ namespace SimpleCV
     {
         if (img.empty() || thickness == 0)
             return;
+        if (img.depth != Depth::U8 || img.elem_size != 1)
+            return;
 
         if (thickness <= 1)
         {
@@ -205,6 +207,8 @@ namespace SimpleCV
     {
         if (img.empty() || radius <= 0 || thickness == 0)
             return;
+        if (img.depth != Depth::U8 || img.elem_size != 1)
+            return;
 
         if (thickness < 0)
         {
@@ -230,6 +234,8 @@ namespace SimpleCV
                                 int thickness, int /*lineType*/, int /*shift*/)
     {
         if (img.empty() || thickness == 0)
+            return;
+        if (img.depth != Depth::U8 || img.elem_size != 1)
             return;
 
         int x0 = std::min(pt1.x, pt2.x);

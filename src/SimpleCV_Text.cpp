@@ -151,6 +151,8 @@ namespace SimpleCV
     {
         if (img.empty() || !img.data || text.empty())
             return;
+        if (img.depth != Depth::U8 || img.elem_size != 1)
+            return;
 
         int scale = (int)std::lround(std::max(1.0, fontScale));
         int t = std::max(1, thickness);
