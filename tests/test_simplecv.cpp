@@ -1,12 +1,23 @@
 #include "SimpleCV.hpp"
 
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <random>
 #include <string>
 
 namespace fs = std::filesystem;
+
+static fs::path unique_tmp_path(const std::string &suffix)
+{
+    const auto seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::mt19937_64 rng((uint64_t)seed);
+    std::uniform_int_distribution<uint64_t> dist;
+    return fs::temp_directory_path() / ("simplecv_" + std::to_string(dist(rng)) + suffix);
+}
 
 // ----------------- minimal test helpers -----------------
 #define SC_ASSERT(expr) do { \
@@ -140,7 +151,7 @@ static bool test_imwrite_imread_flags()
   SimpleCV::Mat rgb(3, 4, 3);
   fill_pattern_rgb(rgb);
 
-  fs::path out = fs::current_path() / "simplecv_test_out.png";
+  fs::path out = unique_tmp_path(".png");
   SC_ASSERT(SimpleCV::imwrite(out.string(), rgb) == 1);
 
   auto r = SimpleCV::imread(out.string(), SimpleCV::ColorSpace::RGB);
@@ -295,6 +306,70 @@ static bool test_kalman_2d_constant_velocity()
   return true;
 }
 
+// ----------------- degenerate / error path -----------------
+
+static bool test_imread_missing_file_returns_empty()
+{
+  fs::path nope = unique_tmp_path("_does_not_exist.png");
+  auto m = SimpleCV::imread(nope.string(), SimpleCV::ColorSpace::RGB);
+  SC_ASSERT(m.empty());
+  return true;
+}
+
+static bool test_imwrite_empty_mat_returns_false()
+{
+  SimpleCV::Mat empty;
+  fs::path out = unique_tmp_path(".png");
+  SC_ASSERT(SimpleCV::imwrite(out.string(), empty) == false);
+  std::error_code ec;
+  // 没写出文件
+  SC_ASSERT(!fs::exists(out, ec));
+  return true;
+}
+
+static bool test_imencode_empty_returns_false()
+{
+  SimpleCV::Mat empty;
+  std::vector<unsigned char> buf;
+  SC_ASSERT(SimpleCV::imencode(empty, buf) == false);
+  SC_ASSERT(buf.empty());
+  return true;
+}
+
+static bool test_imdecode_empty_buffer_returns_empty()
+{
+  std::vector<unsigned char> buf;
+  auto m = SimpleCV::imdecode(buf, SimpleCV::ColorSpace::RGB);
+  SC_ASSERT(m.empty());
+  return true;
+}
+
+static bool test_imdecode_garbage_returns_empty()
+{
+  std::vector<unsigned char> buf(64, 0xCD);
+  auto m = SimpleCV::imdecode(buf, SimpleCV::ColorSpace::RGB);
+  SC_ASSERT(m.empty());
+  return true;
+}
+
+static bool test_resize_empty_src_returns_empty()
+{
+  SimpleCV::Mat empty;
+  SimpleCV::Mat dst(8, 8, 3);
+  SimpleCV::resize(empty, dst, 4, 4);
+  SC_ASSERT(dst.empty());
+  return true;
+}
+
+static bool test_cvtcolor_empty_src_returns_empty()
+{
+  SimpleCV::Mat empty;
+  SimpleCV::Mat dst(2, 2, 3);
+  SimpleCV::cvtColor(empty, dst, SimpleCV::ColorSpace::BGR, SimpleCV::ColorSpace::RGB);
+  SC_ASSERT(dst.empty());
+  return true;
+}
+
 int main()
 {
   struct Case { const char* name; bool (*fn)(); };
@@ -310,6 +385,13 @@ int main()
     {"imencode_imdecode_png_roundtrip", test_imencode_imdecode_png_roundtrip},
     {"imwrite_imread_flags", test_imwrite_imread_flags},
     {"kalman_2d_constant_velocity", test_kalman_2d_constant_velocity},
+    {"imread_missing_file_returns_empty", test_imread_missing_file_returns_empty},
+    {"imwrite_empty_mat_returns_false", test_imwrite_empty_mat_returns_false},
+    {"imencode_empty_returns_false", test_imencode_empty_returns_false},
+    {"imdecode_empty_buffer_returns_empty", test_imdecode_empty_buffer_returns_empty},
+    {"imdecode_garbage_returns_empty", test_imdecode_garbage_returns_empty},
+    {"resize_empty_src_returns_empty", test_resize_empty_src_returns_empty},
+    {"cvtcolor_empty_src_returns_empty", test_cvtcolor_empty_src_returns_empty},
   };
 
   int passed = 0;
